@@ -320,11 +320,21 @@ bool CPDF_ImageRenderer::DrawMaskedImage() {
     return false;
   }
 
-  FX_RECT rect = GetDrawRect();
+#ifdef _SKIA_SUPPORT_
+  bool const premultipliedSrc = m_BlendType == BlendMode::kNormal;
+#else
+  bool const premultipliedSrc = false;
+#endif
+
+  FX_RECT rect = premultipliedSrc
+    ? FX_RECT(0, 0, m_pDIBBase->GetWidth(), m_pDIBBase->GetHeight())
+    : GetDrawRect();
   if (rect.IsEmpty())
     return false;
 
-  CFX_Matrix new_matrix = GetDrawMatrix(rect);
+  CFX_Matrix new_matrix = premultipliedSrc
+    ? CFX_Matrix(rect.Width(), 0, 0, -rect.Height(), 0, rect.Height())
+    : GetDrawMatrix(rect);
   CFX_DefaultRenderDevice bitmap_device1;
   if (!bitmap_device1.Create(rect.Width(), rect.Height(), FXDIB_Rgb32, nullptr))
     return true;
@@ -357,6 +367,21 @@ bool CPDF_ImageRenderer::DrawMaskedImage() {
   CalculateDrawImage(&bitmap_device1, &bitmap_device2, m_Loader.GetMask(),
                      new_matrix, rect);
 #ifdef _SKIA_SUPPORT_
+  if (premultipliedSrc) {
+    RetainPtr<CFX_DIBitmap> premultiplied = bitmap_device1.GetBitmap();
+    bitmap_device2.GetBitmap()->ConvertFormat(FXDIB_8bppMask);
+    premultiplied->MultiplyAlpha(bitmap_device2.GetBitmap());
+    CFX_SkiaDeviceDriver::PreMultiply(premultiplied);
+    if (m_pRenderStatus->GetRenderDevice()->StartDIBitsWithBlend(
+          premultiplied, m_BitmapAlpha, 0, m_ImageMatrix,
+          m_ResampleOptions, &m_DeviceHandle, m_BlendType)) {
+      if (m_DeviceHandle) {
+        m_Mode = Mode::kBlend;
+        return true;
+      }
+    }
+    return false;
+  }
   m_pRenderStatus->GetRenderDevice()->SetBitsWithMask(
       bitmap_device1.GetBitmap(), bitmap_device2.GetBitmap(), rect.left,
       rect.top, m_BitmapAlpha, m_BlendType);

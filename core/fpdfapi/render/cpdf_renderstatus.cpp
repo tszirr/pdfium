@@ -629,11 +629,12 @@ bool CPDF_RenderStatus::ProcessTransparency(CPDF_PageObject* pPageObj,
     bGroupTransparent = transparency.IsIsolated();
     pFormResource = pFormObj->form()->GetDict()->GetDictFor("Resources");
   }
+  int renderCaps = m_pDevice->GetDeviceCaps(FXDC_RENDER_CAPS);
   bool bTextClip =
       (pPageObj->m_ClipPath.HasRef() &&
        pPageObj->m_ClipPath.GetTextCount() > 0 &&
        m_pDevice->GetDeviceType() == DeviceType::kDisplay &&
-       !(m_pDevice->GetDeviceCaps(FXDC_RENDER_CAPS) & FXRC_SOFT_CLIP));
+       !(renderCaps & FXRC_SOFT_CLIP));
   if (m_Options.GetOptions().bOverprint && pPageObj->IsImage() &&
       pPageObj->m_GeneralState.GetFillOP() &&
       pPageObj->m_GeneralState.GetStrokeOP()) {
@@ -661,8 +662,9 @@ bool CPDF_RenderStatus::ProcessTransparency(CPDF_PageObject* pPageObj,
       }
     }
   }
-  if (!pSMaskDict && group_alpha == 1.0f && blend_type == BlendMode::kNormal &&
-      !bTextClip && !bGroupTransparent) {
+  static const int fullAlphaCaps = FXRC_ALPHA_IMAGE | FXRC_ALPHA_PATH;
+  if (!pSMaskDict && group_alpha == 1.0f && (blend_type == BlendMode::kNormal || renderCaps & FXRC_BLEND_MODE) &&
+      !bTextClip && (!bGroupTransparent || (renderCaps & fullAlphaCaps) == fullAlphaCaps)) {
     return false;
   }
   if (m_bPrint) {

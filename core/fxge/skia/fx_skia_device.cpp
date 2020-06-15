@@ -2420,9 +2420,6 @@ bool CFX_SkiaDeviceDriver::SetDIBits(const RetainPtr<CFX_DIBBase>& pBitmap,
                                      int left,
                                      int top,
                                      BlendMode blend_type) {
-  if (!m_pBitmap || !m_pBitmap->GetBuffer())
-    return true;
-
 #ifdef _SKIA_SUPPORT_
   CFX_Matrix m = CFX_RenderDevice::GetFlipMatrix(
       pBitmap->GetWidth(), pBitmap->GetHeight(), left, top);
@@ -2432,6 +2429,9 @@ bool CFX_SkiaDeviceDriver::SetDIBits(const RetainPtr<CFX_DIBBase>& pBitmap,
 #endif  // _SKIA_SUPPORT_
 
 #ifdef _SKIA_SUPPORT_PATHS_
+  if (!m_pBitmap || !m_pBitmap->GetBuffer())
+    return true;
+
   Flush();
   if (pBitmap->IsAlphaMask()) {
     return m_pBitmap->CompositeMask(left, top, src_rect.Width(),
@@ -2456,8 +2456,6 @@ bool CFX_SkiaDeviceDriver::StretchDIBits(const RetainPtr<CFX_DIBBase>& pSource,
                                          BlendMode blend_type) {
 #ifdef _SKIA_SUPPORT_
   m_pCache->FlushForDraw();
-  if (!m_pBitmap->GetBuffer())
-    return true;
 
   CFX_Matrix m = CFX_RenderDevice::GetFlipMatrix(dest_width, dest_height,
                                                  dest_left, dest_top);
@@ -2471,6 +2469,8 @@ bool CFX_SkiaDeviceDriver::StretchDIBits(const RetainPtr<CFX_DIBBase>& pSource,
 #endif  // _SKIA_SUPPORT_
 
 #ifdef _SKIA_SUPPORT_PATHS_
+  if (!m_pBitmap->GetBuffer())
+    return true;
   if (dest_width == pSource->GetWidth() &&
       dest_height == pSource->GetHeight()) {
     FX_RECT rect(0, 0, dest_width, dest_height);
@@ -2677,9 +2677,10 @@ bool CFX_SkiaDeviceDriver::SetBitsWithMask(
     int dest_top,
     int bitmap_alpha,
     BlendMode blend_type) {
+#ifdef _SKIA_SUPPORT_PATHS_
   if (!m_pBitmap || !m_pBitmap->GetBuffer())
     return true;
-
+#endif
   CFX_Matrix m = CFX_RenderDevice::GetFlipMatrix(
       pBitmap->GetWidth(), pBitmap->GetHeight(), dest_left, dest_top);
   return DrawBitsWithMask(pBitmap, pMask, bitmap_alpha, m, blend_type);

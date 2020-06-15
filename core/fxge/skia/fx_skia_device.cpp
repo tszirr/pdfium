@@ -679,7 +679,7 @@ bool Upsample(const RetainPtr<CFX_DIBBase>& pSource,
         }
         buffer = dst32Storage.get();
         rowBytes = width * sizeof(uint32_t);
-        colorType = Get32BitSkColorType(bRgbByteOrder);
+        colorType = kRGBA_8888_SkColorType;
       }
       break;
     case 24: {
@@ -696,12 +696,12 @@ bool Upsample(const RetainPtr<CFX_DIBBase>& pSource,
       }
       buffer = dst32Storage.get();
       rowBytes = width * sizeof(uint32_t);
-      colorType = Get32BitSkColorType(bRgbByteOrder);
+      colorType = kRGBA_8888_SkColorType;
       alphaType = kOpaque_SkAlphaType;
       break;
     }
     case 32:
-      colorType = Get32BitSkColorType(bRgbByteOrder);
+      colorType = kRGBA_8888_SkColorType;
       alphaType = kPremul_SkAlphaType;
       pSource->DebugVerifyBitmapIsPreMultiplied(buffer);
       break;
@@ -1648,7 +1648,8 @@ CFX_SkiaDeviceDriver::CFX_SkiaDeviceDriver(int size_x, int size_y)
       m_pBackdropBitmap(nullptr),
       m_pRecorder(new SkPictureRecorder),
       m_pCache(new SkiaState(this)),
-      m_bGroupKnockout(false) {
+      m_bGroupKnockout(false),
+      m_bRgbByteOrder(true) {
   m_pRecorder->beginRecording(SkIntToScalar(size_x), SkIntToScalar(size_y));
   m_pCanvas = m_pRecorder->getRecordingCanvas();
 }
@@ -1658,7 +1659,8 @@ CFX_SkiaDeviceDriver::CFX_SkiaDeviceDriver(SkPictureRecorder* recorder)
       m_pBackdropBitmap(nullptr),
       m_pRecorder(recorder),
       m_pCache(new SkiaState(this)),
-      m_bGroupKnockout(false) {
+      m_bGroupKnockout(false),
+      m_bRgbByteOrder(true) {
   m_pCanvas = m_pRecorder->getRecordingCanvas();
 }
 #endif  // _SKIA_SUPPORT_
@@ -2755,7 +2757,7 @@ bool CFX_DefaultRenderDevice::Create(
   }
   SetBitmap(pBitmap);
   SetDeviceDriver(pdfium::MakeUnique<CFX_SkiaDeviceDriver>(
-      pBitmap, false, pBackdropBitmap, false));
+      pBitmap, true, pBackdropBitmap, false));
   return true;
 }
 

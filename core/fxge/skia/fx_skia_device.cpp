@@ -679,7 +679,7 @@ bool Upsample(const RetainPtr<CFX_DIBBase>& pSource,
         }
         buffer = dst32Storage.get();
         rowBytes = width * sizeof(uint32_t);
-        colorType = kRGBA_8888_SkColorType;
+        colorType = bRgbByteOrder ? kRGBA_8888_SkColorType : kBGRA_8888_SkColorType;
       }
       break;
     case 24: {
@@ -696,12 +696,12 @@ bool Upsample(const RetainPtr<CFX_DIBBase>& pSource,
       }
       buffer = dst32Storage.get();
       rowBytes = width * sizeof(uint32_t);
-      colorType = kRGBA_8888_SkColorType;
+      colorType = bRgbByteOrder ? kRGBA_8888_SkColorType : kBGRA_8888_SkColorType;
       alphaType = kOpaque_SkAlphaType;
       break;
     }
     case 32:
-      colorType = kRGBA_8888_SkColorType;
+      colorType = bRgbByteOrder ? kRGBA_8888_SkColorType : kBGRA_8888_SkColorType;
       alphaType = kPremul_SkAlphaType;
       pSource->DebugVerifyBitmapIsPreMultiplied(buffer);
       break;
@@ -1649,7 +1649,11 @@ CFX_SkiaDeviceDriver::CFX_SkiaDeviceDriver(int size_x, int size_y)
       m_pRecorder(new SkPictureRecorder),
       m_pCache(new SkiaState(this)),
       m_bGroupKnockout(false),
+#ifdef _WIN32
+      m_bRgbByteOrder(false) {
+#else
       m_bRgbByteOrder(true) {
+#endif
   m_pRecorder->beginRecording(SkIntToScalar(size_x), SkIntToScalar(size_y));
   m_pCanvas = m_pRecorder->getRecordingCanvas();
 }
@@ -1660,7 +1664,11 @@ CFX_SkiaDeviceDriver::CFX_SkiaDeviceDriver(SkPictureRecorder* recorder)
       m_pRecorder(recorder),
       m_pCache(new SkiaState(this)),
       m_bGroupKnockout(false),
+#ifdef _WIN32
+      m_bRgbByteOrder(false) {
+#else
       m_bRgbByteOrder(true) {
+#endif
   m_pCanvas = m_pRecorder->getRecordingCanvas();
 }
 #endif  // _SKIA_SUPPORT_

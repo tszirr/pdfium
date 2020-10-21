@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "core/fxcrt/fx_coordinates.h"
+#include "core/fxcrt/fx_memory_wrappers.h"
 #include "core/fxcrt/retain_ptr.h"
 #include "core/fxcrt/unowned_ptr.h"
 #include "core/fxge/dib/cfx_scanlinecompositor.h"
@@ -35,11 +36,11 @@ class CFX_BitmapComposer final : public ScanlineComposerIface {
                bool bRgbByteOrder,
                BlendMode blend_type);
 
-  // ScanlineComposerIface
+  // ScanlineComposerIface:
   bool SetInfo(int width,
                int height,
                FXDIB_Format src_format,
-               uint32_t* pSrcPalette) override;
+               pdfium::span<const uint32_t> src_palette) override;
 
   void ComposeScanline(int line,
                        const uint8_t* scanline,

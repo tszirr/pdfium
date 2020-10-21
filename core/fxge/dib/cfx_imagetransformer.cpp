@@ -14,8 +14,8 @@
 #include "core/fxge/dib/cfx_imagestretcher.h"
 #include "core/fxge/fx_dib.h"
 #include "third_party/base/compiler_specific.h"
+#include "third_party/base/notreached.h"
 #include "third_party/base/numerics/safe_conversions.h"
-#include "third_party/base/ptr_util.h"
 #include "third_party/base/stl_util.h"
 
 namespace {
@@ -137,7 +137,7 @@ void WriteColorResult(const F& func,
   uint32_t* dest32 = reinterpret_cast<uint32_t*>(dest);
   if (bHasAlpha) {
     if (format == FXDIB_Argb) {
-      *dest32 = FXARGB_TODIB(ArgbEncode(func(3), red_y, green_m, blue_c));
+      *dest32 = ArgbEncode(func(3), red_y, green_m, blue_c);
     } else if (format == FXDIB_Rgba) {
       dest[0] = blue_c;
       dest[1] = green_m;
@@ -151,7 +151,7 @@ void WriteColorResult(const F& func,
   if (format == FXDIB_Cmyka) {
     *dest32 = FXCMYK_TODIB(CmykEncode(blue_c, green_m, red_y, func(3)));
   } else {
-    *dest32 = FXARGB_TODIB(ArgbEncode(kOpaqueAlpha, red_y, green_m, blue_c));
+    *dest32 = ArgbEncode(kOpaqueAlpha, red_y, green_m, blue_c);
   }
 }
 
@@ -330,7 +330,7 @@ CFX_ImageTransformer::CFX_ImageTransformer(const RetainPtr<CFX_DIBBase>& pSrc,
     result_clip.Offset(-result_rect.left, -result_rect.top);
     result_clip = FXDIB_SwapClipBox(result_clip, dest_width, dest_height,
                                     m_matrix.c > 0, m_matrix.b < 0);
-    m_Stretcher = pdfium::MakeUnique<CFX_ImageStretcher>(
+    m_Stretcher = std::make_unique<CFX_ImageStretcher>(
         &m_Storer, m_pSrc, dest_height, dest_width, result_clip,
         m_ResampleOptions);
     m_Stretcher->Start();
@@ -343,7 +343,7 @@ CFX_ImageTransformer::CFX_ImageTransformer(const RetainPtr<CFX_DIBBase>& pSrc,
     int dest_height = static_cast<int>(m_matrix.d > 0 ? -ceil(m_matrix.d)
                                                       : -floor(m_matrix.d));
     result_clip.Offset(-result_rect.left, -result_rect.top);
-    m_Stretcher = pdfium::MakeUnique<CFX_ImageStretcher>(
+    m_Stretcher = std::make_unique<CFX_ImageStretcher>(
         &m_Storer, m_pSrc, dest_width, dest_height, result_clip,
         m_ResampleOptions);
     m_Stretcher->Start();
@@ -373,7 +373,7 @@ CFX_ImageTransformer::CFX_ImageTransformer(const RetainPtr<CFX_DIBBase>& pSrc,
 
   m_dest2stretch = dest_to_strech;
   m_StretchClip = stretch_clip;
-  m_Stretcher = pdfium::MakeUnique<CFX_ImageStretcher>(
+  m_Stretcher = std::make_unique<CFX_ImageStretcher>(
       &m_Storer, m_pSrc, stretch_width, stretch_height, m_StretchClip,
       m_ResampleOptions);
   m_Stretcher->Start();
@@ -513,15 +513,16 @@ void CFX_ImageTransformer::CalcAlpha(const CalcData& cdata) {
 void CFX_ImageTransformer::CalcMono(const CalcData& cdata,
                                     FXDIB_Format format) {
   uint32_t argb[256];
-  FX_ARGB* pPal = m_Storer.GetBitmap()->GetPalette();
-  if (pPal) {
-    for (size_t i = 0; i < FX_ArraySize(argb); i++)
-      argb[i] = pPal[i];
+  if (m_Storer.GetBitmap()->HasPalette()) {
+    pdfium::span<const uint32_t> palette =
+        m_Storer.GetBitmap()->GetPaletteSpan();
+    for (size_t i = 0; i < pdfium::size(argb); i++)
+      argb[i] = palette[i];
   } else if (m_Storer.GetBitmap()->IsCmykImage()) {
-    for (size_t i = 0; i < FX_ArraySize(argb); i++)
+    for (size_t i = 0; i < pdfium::size(argb); i++)
       argb[i] = 255 - i;
   } else {
-    for (size_t i = 0; i < FX_ArraySize(argb); i++)
+    for (size_t i = 0; i < pdfium::size(argb); i++)
       argb[i] = 0xff000000 | (i * 0x010101);
   }
   int destBpp = cdata.bitmap->GetBPP() / 8;

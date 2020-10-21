@@ -14,7 +14,9 @@
 #include "fxjs/xfa/cfxjse_isolatetracker.h"
 #include "fxjs/xfa/cfxjse_runtimedata.h"
 #include "fxjs/xfa/cfxjse_value.h"
+#include "fxjs/xfa/cjx_object.h"
 #include "third_party/base/ptr_util.h"
+#include "xfa/fxfa/parser/cxfa_thisproxy.h"
 
 namespace {
 
@@ -53,8 +55,8 @@ const char szConsoleScript[] =
     "};";
 
 // Only address matters, values are for humans debuging here.
-char g_FXJSEHostObjectTag[] = "FXJSE Host Object";
-char g_FXJSEProxyObjectTag[] = "FXJSE Proxy Object";
+const char kFXJSEHostObjectTag[] = "FXJSE Host Object";
+const char kFXJSEProxyObjectTag[] = "FXJSE Proxy Object";
 
 v8::Local<v8::Object> CreateReturnValue(v8::Isolate* pIsolate,
                                         v8::TryCatch* trycatch) {
@@ -125,7 +127,8 @@ class CFXJSE_ScopeUtil_IsolateHandleContext {
 void FXJSE_UpdateProxyBinding(v8::Local<v8::Object> hObject) {
   ASSERT(!hObject.IsEmpty());
   ASSERT(hObject->InternalFieldCount() == 2);
-  hObject->SetAlignedPointerInInternalField(0, g_FXJSEProxyObjectTag);
+  hObject->SetAlignedPointerInInternalField(
+      0, const_cast<char*>(kFXJSEProxyObjectTag));
   hObject->SetAlignedPointerInInternalField(1, nullptr);
 }
 
@@ -135,7 +138,8 @@ void FXJSE_UpdateObjectBinding(v8::Local<v8::Object> hObject,
                                CFXJSE_HostObject* lpNewBinding) {
   ASSERT(!hObject.IsEmpty());
   ASSERT(hObject->InternalFieldCount() == 2);
-  hObject->SetAlignedPointerInInternalField(0, g_FXJSEHostObjectTag);
+  hObject->SetAlignedPointerInInternalField(
+      0, const_cast<char*>(kFXJSEHostObjectTag));
   hObject->SetAlignedPointerInInternalField(1, lpNewBinding);
 }
 
@@ -154,7 +158,7 @@ CFXJSE_HostObject* FXJSE_RetrieveObjectBinding(
 
   v8::Local<v8::Object> hObject = hJSObject;
   if (hObject->InternalFieldCount() != 2 ||
-      hObject->GetAlignedPointerFromInternalField(0) == g_FXJSEProxyObjectTag) {
+      hObject->GetAlignedPointerFromInternalField(0) == kFXJSEProxyObjectTag) {
     v8::Local<v8::Value> hProtoObject = hObject->GetPrototype();
     if (hProtoObject.IsEmpty() || !hProtoObject->IsObject())
       return nullptr;
@@ -163,7 +167,7 @@ CFXJSE_HostObject* FXJSE_RetrieveObjectBinding(
     if (hObject->InternalFieldCount() != 2)
       return nullptr;
   }
-  if (hObject->GetAlignedPointerFromInternalField(0) != g_FXJSEHostObjectTag)
+  if (hObject->GetAlignedPointerFromInternalField(0) != kFXJSEHostObjectTag)
     return nullptr;
 
   return static_cast<CFXJSE_HostObject*>(
@@ -174,9 +178,12 @@ CFXJSE_HostObject* FXJSE_RetrieveObjectBinding(
 std::unique_ptr<CFXJSE_Context> CFXJSE_Context::Create(
     v8::Isolate* pIsolate,
     const FXJSE_CLASS_DESCRIPTOR* pGlobalClass,
-    CFXJSE_HostObject* pGlobalObject) {
+    CFXJSE_HostObject* pGlobalObject,
+    CXFA_ThisProxy* pProxy) {
   CFXJSE_ScopeUtil_IsolateHandle scope(pIsolate);
-  auto pContext = pdfium::MakeUnique<CFXJSE_Context>(pIsolate);
+
+  // Private constructor.
+  auto pContext = pdfium::WrapUnique(new CFXJSE_Context(pIsolate, pProxy));
   v8::Local<v8::ObjectTemplate> hObjectTemplate;
   if (pGlobalClass) {
     CFXJSE_Class* pGlobalClassObj =
@@ -208,12 +215,13 @@ std::unique_ptr<CFXJSE_Context> CFXJSE_Context::Create(
   return pContext;
 }
 
-CFXJSE_Context::CFXJSE_Context(v8::Isolate* pIsolate) : m_pIsolate(pIsolate) {}
+CFXJSE_Context::CFXJSE_Context(v8::Isolate* pIsolate, CXFA_ThisProxy* pProxy)
+    : m_pIsolate(pIsolate), m_pProxy(pProxy) {}
 
-CFXJSE_Context::~CFXJSE_Context() {}
+CFXJSE_Context::~CFXJSE_Context() = default;
 
 std::unique_ptr<CFXJSE_Value> CFXJSE_Context::GetGlobalObject() {
-  auto pValue = pdfium::MakeUnique<CFXJSE_Value>(GetIsolate());
+  auto pValue = std::make_unique<CFXJSE_Value>(GetIsolate());
   CFXJSE_ScopeUtil_IsolateHandleContext scope(this);
   v8::Local<v8::Context> hContext =
       v8::Local<v8::Context>::New(GetIsolate(), m_hContext);

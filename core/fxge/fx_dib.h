@@ -171,7 +171,6 @@ FX_ARGB StringToFXARGB(WideStringView view);
   ((uint8_t*)(p))[0] = (uint8_t)((argb) >> 16), \
   ((uint8_t*)(p))[1] = (uint8_t)((argb) >> 8),  \
   ((uint8_t*)(p))[2] = (uint8_t)(argb)
-#define FXARGB_TODIB(argb) (argb)
 #define FXCMYK_TODIB(cmyk)                                    \
   ((uint8_t)((cmyk) >> 24) | ((uint8_t)((cmyk) >> 16)) << 8 | \
    ((uint8_t)((cmyk) >> 8)) << 16 | ((uint8_t)(cmyk) << 24))
@@ -184,5 +183,11 @@ FX_RECT FXDIB_SwapClipBox(const FX_RECT& clip,
                           int height,
                           bool bFlipX,
                           bool bFlipY);
+
+inline void ReverseCopy3Bytes(uint8_t* dest, const uint8_t* src) {
+  dest[2] = src[0];
+  dest[1] = src[1];
+  dest[0] = src[2];
+}
 
 #endif  // CORE_FXGE_FX_DIB_H_

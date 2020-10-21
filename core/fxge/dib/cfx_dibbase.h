@@ -7,12 +7,13 @@
 #ifndef CORE_FXGE_DIB_CFX_DIBBASE_H_
 #define CORE_FXGE_DIB_CFX_DIBBASE_H_
 
-#include <memory>
+#include <vector>
 
 #include "core/fxcrt/fx_coordinates.h"
 #include "core/fxcrt/fx_memory_wrappers.h"
 #include "core/fxcrt/retain_ptr.h"
 #include "core/fxge/fx_dib.h"
+#include "third_party/base/span.h"
 
 enum FXDIB_Channel {
   FXDIB_Red = 1,
@@ -55,7 +56,9 @@ class CFX_DIBBase : public Retainable {
     return static_cast<FXDIB_Format>(m_AlphaFlag * 0x100 + m_bpp);
   }
   uint32_t GetPitch() const { return m_Pitch; }
-  uint32_t* GetPalette() const { return m_pPalette.get(); }
+  bool HasPalette() const { return !m_palette.empty(); }
+  pdfium::span<const uint32_t> GetPaletteSpan() const { return m_palette; }
+  const uint32_t* GetPaletteData() const { return m_palette.data(); }
   int GetBPP() const { return m_bpp; }
 
   bool IsAlphaMask() const { return !!(m_AlphaFlag & 1); }
@@ -69,7 +72,7 @@ class CFX_DIBBase : public Retainable {
   void SetPaletteArgb(int index, uint32_t color);
 
   // Copies into internally-owned palette.
-  void SetPalette(const uint32_t* pSrcPal);
+  void SetPalette(pdfium::span<const uint32_t> src_palette);
 
   RetainPtr<CFX_DIBitmap> Clone(const FX_RECT* pClip) const;
   RetainPtr<CFX_DIBitmap> CloneConvert(FXDIB_Format format);
@@ -99,7 +102,7 @@ class CFX_DIBBase : public Retainable {
                       int& src_top,
                       const CFX_ClipRgn* pClipRgn);
 
-#if defined _SKIA_SUPPORT_ || defined _SKIA_SUPPORT_PATHS_
+#if defined(_SKIA_SUPPORT_) || defined(_SKIA_SUPPORT_PATHS_)
   void DebugVerifyBitmapIsPreMultiplied(void* buffer) const;
 #endif
 
@@ -108,15 +111,16 @@ class CFX_DIBBase : public Retainable {
  protected:
   CFX_DIBBase();
 
-  static bool ConvertBuffer(FXDIB_Format dest_format,
-                            uint8_t* dest_buf,
-                            int dest_pitch,
-                            int width,
-                            int height,
-                            const RetainPtr<CFX_DIBBase>& pSrcBitmap,
-                            int src_left,
-                            int src_top,
-                            std::unique_ptr<uint32_t, FxFreeDeleter>* pal);
+  static bool ConvertBuffer(
+      FXDIB_Format dest_format,
+      uint8_t* dest_buf,
+      int dest_pitch,
+      int width,
+      int height,
+      const RetainPtr<CFX_DIBBase>& pSrcBitmap,
+      int src_left,
+      int src_top,
+      std::vector<uint32_t, FxAllocAllocator<uint32_t>>* pal);
 
   void BuildPalette();
   bool BuildAlphaMask();
@@ -128,8 +132,7 @@ class CFX_DIBBase : public Retainable {
   int m_bpp;
   uint32_t m_AlphaFlag;
   uint32_t m_Pitch;
-  // TODO(weili): Use std::vector for this.
-  std::unique_ptr<uint32_t, FxFreeDeleter> m_pPalette;
+  std::vector<uint32_t, FxAllocAllocator<uint32_t>> m_palette;
 };
 
 #endif  // CORE_FXGE_DIB_CFX_DIBBASE_H_

@@ -12,6 +12,7 @@
 #include "fxjs/js_resources.h"
 #include "fxjs/xfa/cfxjse_engine.h"
 #include "fxjs/xfa/cfxjse_value.h"
+#include "third_party/base/notreached.h"
 #include "xfa/fxfa/cxfa_ffdoc.h"
 #include "xfa/fxfa/cxfa_ffnotify.h"
 #include "xfa/fxfa/parser/cxfa_document.h"
@@ -30,7 +31,7 @@ CJX_InstanceManager::CJX_InstanceManager(CXFA_InstanceManager* mgr)
   DefineMethods(MethodSpecs);
 }
 
-CJX_InstanceManager::~CJX_InstanceManager() {}
+CJX_InstanceManager::~CJX_InstanceManager() = default;
 
 bool CJX_InstanceManager::DynamicTypeIs(TypeTag eType) const {
   return eType == static_type__ || ParentType__::DynamicTypeIs(eType);

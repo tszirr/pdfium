@@ -19,25 +19,26 @@
 #include "core/fpdfapi/page/cpdf_shadingpattern.h"
 #include "core/fpdfapi/page/cpdf_tilingpattern.h"
 #include "core/fpdfapi/page/cpdf_transferfunc.h"
-#include "core/fpdfapi/parser/cpdf_array.h"
 #include "core/fpdfapi/parser/cpdf_dictionary.h"
 #include "core/fpdfapi/parser/cpdf_document.h"
 #include "core/fpdfapi/parser/cpdf_stream.h"
+#include "core/fpdfapi/parser/fpdf_parser_decode.h"
 #include "core/fpdfapi/render/cpdf_pagerendercache.h"
 #include "core/fpdfapi/render/cpdf_rendercontext.h"
 #include "core/fpdfapi/render/cpdf_renderstatus.h"
 #include "core/fxcrt/fx_safe_types.h"
 #include "core/fxcrt/maybe_owned.h"
 #include "core/fxge/cfx_defaultrenderdevice.h"
+#include "core/fxge/cfx_fillrenderoptions.h"
 #include "core/fxge/cfx_pathdata.h"
 #include "core/fxge/dib/cfx_dibbase.h"
 #include "core/fxge/dib/cfx_dibitmap.h"
 #include "core/fxge/dib/cfx_imagestretcher.h"
 #include "core/fxge/dib/cfx_imagetransformer.h"
-#include "third_party/base/ptr_util.h"
+#include "third_party/base/notreached.h"
 #include "third_party/base/stl_util.h"
 
-#ifdef _SKIA_SUPPORT_
+#if defined(_SKIA_SUPPORT_)
 #include "core/fxge/skia/fx_skia_device.h"
 #endif
 
@@ -339,7 +340,7 @@ bool CPDF_ImageRenderer::DrawMaskedImage() {
   if (!bitmap_device1.Create(rect.Width(), rect.Height(), FXDIB_Rgb32, nullptr))
     return true;
 
-#if defined _SKIA_SUPPORT_
+#if defined(_SKIA_SUPPORT_)
   bitmap_device1.Clear(0xffffff);
 #else
   bitmap_device1.GetBitmap()->Clear(0xffffff);
@@ -359,14 +360,14 @@ bool CPDF_ImageRenderer::DrawMaskedImage() {
                              nullptr))
     return true;
 
-#if defined _SKIA_SUPPORT_
+#if defined(_SKIA_SUPPORT_)
   bitmap_device2.Clear(0);
 #else
   bitmap_device2.GetBitmap()->Clear(0);
 #endif
   CalculateDrawImage(&bitmap_device1, &bitmap_device2, m_Loader.GetMask(),
                      new_matrix, rect);
-#ifdef _SKIA_SUPPORT_
+#if defined(_SKIA_SUPPORT_)
   if (premultipliedSrc) {
     RetainPtr<CFX_DIBitmap> premultiplied = bitmap_device1.GetBitmap();
     bitmap_device2.GetBitmap()->ConvertFormat(FXDIB_8bppMask);
@@ -392,7 +393,7 @@ bool CPDF_ImageRenderer::DrawMaskedImage() {
     bitmap_device1.GetBitmap()->MultiplyAlpha(m_BitmapAlpha);
   m_pRenderStatus->GetRenderDevice()->SetDIBitsWithBlend(
       bitmap_device1.GetBitmap(), rect.left, rect.top, m_BlendType);
-#endif  //  _SKIA_SUPPORT_
+#endif  //  defined(_SKIA_SUPPORT_)
   return false;
 }
 
@@ -411,13 +412,13 @@ bool CPDF_ImageRenderer::StartDIBBase() {
     }
   }
   RetainPtr<CFX_DIBBase> premultiplied = m_pDIBBase;
-#ifdef _SKIA_SUPPORT_
+#if defined(_SKIA_SUPPORT_)
   if (m_pDIBBase->HasAlpha()) {
     RetainPtr<CFX_DIBitmap> copy = m_pDIBBase->Clone(nullptr);
     CFX_SkiaDeviceDriver::PreMultiply(copy);
     premultiplied = copy;
   }
-#endif
+#endif  // defined(_SKIA_SUPPORT_)
   if (m_pRenderStatus->GetRenderDevice()->StartDIBitsWithBlend(
           premultiplied, m_BitmapAlpha, m_FillArgb, m_ImageMatrix,
           m_ResampleOptions, &m_DeviceHandle, m_BlendType)) {
@@ -442,7 +443,7 @@ bool CPDF_ImageRenderer::StartDIBBase() {
     FX_RECT clip_box = m_pRenderStatus->GetRenderDevice()->GetClipBox();
     clip_box.Intersect(image_rect.value());
     m_Mode = Mode::kTransform;
-    m_pTransformer = pdfium::MakeUnique<CFX_ImageTransformer>(
+    m_pTransformer = std::make_unique<CFX_ImageTransformer>(
         m_pDIBBase, m_ImageMatrix, m_ResampleOptions, &clip_box);
     return true;
   }
@@ -504,8 +505,9 @@ bool CPDF_ImageRenderer::StartBitmapAlpha() {
     path.Transform(m_ImageMatrix);
     uint32_t fill_color =
         ArgbEncode(0xff, m_BitmapAlpha, m_BitmapAlpha, m_BitmapAlpha);
-    m_pRenderStatus->GetRenderDevice()->DrawPath(&path, nullptr, nullptr,
-                                                 fill_color, 0, FXFILL_WINDING);
+    m_pRenderStatus->GetRenderDevice()->DrawPath(
+        &path, nullptr, nullptr, fill_color, 0,
+        CFX_FillRenderOptions::WindingOptions());
     return false;
   }
   RetainPtr<CFX_DIBBase> pAlphaMask;
@@ -605,28 +607,15 @@ bool CPDF_ImageRenderer::ContinueTransform(PauseIndicatorIface* pPause) {
 }
 
 void CPDF_ImageRenderer::HandleFilters() {
-  CPDF_Object* pFilters =
-      m_pImageObject->GetImage()->GetStream()->GetDict()->GetDirectObjectFor(
-          "Filter");
-  if (!pFilters)
+  Optional<DecoderArray> decoder_array =
+      GetDecoderArray(m_pImageObject->GetImage()->GetStream()->GetDict());
+  if (!decoder_array.has_value())
     return;
 
-  if (pFilters->IsName()) {
-    ByteString bsDecodeType = pFilters->GetString();
-    if (bsDecodeType == "DCTDecode" || bsDecodeType == "JPXDecode")
+  for (const auto& decoder : decoder_array.value()) {
+    if (decoder.first == "DCTDecode" || decoder.first == "JPXDecode") {
       m_ResampleOptions.bLossy = true;
-    return;
-  }
-
-  CPDF_Array* pArray = pFilters->AsArray();
-  if (!pArray)
-    return;
-
-  for (size_t i = 0; i < pArray->size(); i++) {
-    ByteString bsDecodeType = pArray->GetStringAt(i);
-    if (bsDecodeType == "DCTDecode" || bsDecodeType == "JPXDecode") {
-      m_ResampleOptions.bLossy = true;
-      break;
+      return;
     }
   }
 }

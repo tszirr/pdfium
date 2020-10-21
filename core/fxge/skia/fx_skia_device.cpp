@@ -2442,9 +2442,6 @@ bool CFX_SkiaDeviceDriver::SetDIBits(const RetainPtr<CFX_DIBBase>& pBitmap,
                                      int left,
                                      int top,
                                      BlendMode blend_type) {
-  if (!m_pBitmap || !m_pBitmap->GetBuffer())
-    return true;
-
 #if defined(_SKIA_SUPPORT_)
   CFX_Matrix m = CFX_RenderDevice::GetFlipMatrix(
       pBitmap->GetWidth(), pBitmap->GetHeight(), left, top);
@@ -2569,7 +2566,7 @@ bool CFX_SkiaDeviceDriver::StartDIBits(
 
 #if defined(_SKIA_SUPPORT_PATHS_)
   Flush();
-  if (!m_pBitmap->GetBuffer())
+  if (!m_pBitmap || !m_pBitmap->GetBuffer())
     return true;
   m_pBitmap->UnPreMultiply();
   *handle = std::make_unique<CFX_ImageRenderer>(
